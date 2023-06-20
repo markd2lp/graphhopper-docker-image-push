@@ -23,8 +23,11 @@ RUN sed -i '/^ *bind_host/s/^ */&# /p' config-example.yml
 
 VOLUME [ "/data" ]
 
-EXPOSE 8989 8990
+EXPOSE 8989 8989
 
 HEALTHCHECK --interval=5s --timeout=3s CMD curl --fail http://localhost:8989/health || exit 1
 
-ENTRYPOINT [ "./graphhopper.sh", "-c", "config-example.yml" ]
+COPY ./docker-entrypoint.sh ./
+RUN chmod +x ./docker-entrypoint.sh
+ENTRYPOINT ["./docker-entrypoint.sh"]
+# ENTRYPOINT [ "./graphhopper.sh", "-c", "config-example.yml" ]

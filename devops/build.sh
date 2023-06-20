@@ -41,7 +41,7 @@ else
   (cd graphhopper; git checkout master; git pull)
 fi
 
-imagename="israelhikingmap/graphhopper:${1:-latest}"
+imagename="fp-graphhopper:${1:-latest}"
 if [ "$1" ]; then
   echo "Checking out graphhopper:$1"
   (cd graphhopper; git checkout --detach "$1")
