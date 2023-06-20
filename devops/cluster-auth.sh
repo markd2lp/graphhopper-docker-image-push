@@ -24,7 +24,7 @@ for dependency in ${dependencies[@]}; do
   fi
 done
 
-ENV_FILE=${ENV_FILE:-".keys/.devops.${TARGET_ENV}.env"}
+ENV_FILE=${ENV_FILE:-".keys/.devops.prod.env"}
 
 if [[ -f ${ENV_FILE} ]]; then
   echo "* Sourcing env file: ${ENV_FILE}"
@@ -45,8 +45,8 @@ if [[ ! ${has_set_aws_profile} ]]; then
 fi
 
 auth_command="aws --profile fp-devops eks update-kubeconfig"
-auth_command+=" --region us-west-1"
-auth_command+=" --name fp-graphhper-cluster"
+auth_command+=" --region ${EKS_ZONE}"
+auth_command+=" --name ${EKS_CLUSTER}"
 
 echo "> ${auth_command}"
 ${auth_command}

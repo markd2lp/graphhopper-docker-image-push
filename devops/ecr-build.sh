@@ -36,6 +36,7 @@ while getopts b: flag;do
 done
 
 ENV_FILE=${ENV_FILE:-.keys/.fp.tmp.env}
+CONFIRM_DEPLOY=${CONFIRM_DEPLOY:-yes}
 
 if [[ -f ${ENV_FILE} ]]; then
   echo "* Sourcing env file: ${ENV_FILE}"
@@ -72,7 +73,89 @@ for var in ${vars[@]}; do
   fi
 done
 
-# aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 108338497096.dkr.ecr.us-east-1.amazonaws.com
-# ./devops/build.sh
-# docker tag fp-graphhopper:latest 108338497096.dkr.ecr.us-east-1.amazonaws.com/fp-graphhopper:latest
-# docker push 108338497096.dkr.ecr.us-east-1.amazonaws.com/fp-graphhopper:latest
+
+git checkout ${GIT_BRANCH} > /dev/null
+echo "* Current branch: ${GIT_BRANCH}"
+
+if [[ $(git ls-remote origin ${GIT_BRANCH}) ]]; then
+  git pull origin ${GIT_BRANCH}
+fi
+
+commit_id=${CI_COMMIT_ID:-$(git rev-parse HEAD)}
+echo "* Commit ID (HEAD): ${commit_id}"
+
+repository_name=prod-fp-graphhopper
+image_exists= ./devops/find-ecr-image.sh ${repository_name} ${commit_id}
+
+if [[ ${image_exists} == "no" ]];then
+
+  echo ""
+  echo "+--------------------------------------------------------------------+"
+  echo "| 2. Build release image                                             |"
+  echo "+--------------------------------------------------------------------+"
+  echo ""
+
+  base_image="prod-base-fp-graphhopper:${commit_id}"
+
+  echo -e "> Build image ${base_image}\n"
+
+  ./devops/build.sh -i ${base_image} -c ${commit_id}
+
+
+  echo ""
+  echo "+--------------------------------------------------------------------+"
+  echo "| >>>>>>>>>>>>>>>>>>>>>>>>  DEPLOYMENT  <<<<<<<<<<<<<<<<<<<<<<<<<<<< |"
+  echo "+--------------------------------------------------------------------+"
+  echo ""
+
+  if [[ ${CONFIRM_DEPLOY} == "yes" ]]; then
+    read -r -p "* Are you sure to continue with the deployment? [y/N] " response
+
+    case "${response}" in
+      [[yY])
+        echo "* Ok"
+        ;;
+      *)
+        echo "* Deploy status: aborted"
+        exit 1
+        ;;
+    esac
+  fi
+
+  echo ""
+  echo "+--------------------------------------------------------------------+"
+  echo "| 1. Push release image                                              |"
+  echo "+--------------------------------------------------------------------+"
+  echo ""
+
+  echo ""
+  echo "---> Push image to registry"
+  echo ""
+
+
+  aws_profile=fp-devops
+  region=us-west-1
+  host="108338497096.dkr.ecr.${region}.amazonaws.com"
+
+
+
+  aws --profile ${aws_profile} ecr get-login-password --region ${region} | \
+    docker login --username AWS --password-stdin ${host}
+
+  target_image=108338497096.dkr.ecr.${region}.amazonaws.com/prod-fp-graphhopper:${commit_id}
+
+  docker tag ${base_image} ${target_image}
+  docker push ${target_image}
+
+  echo -e "\n* Pushed image: ${target_image}\n"
+else
+  echo "Image ${repository_name}:${commit_id} already exists"
+fi
+
+echo ""
+echo "+--------------------------------------------------------------------+"
+echo "| 2. Deploy to Kubernetes                                            |"
+echo "+--------------------------------------------------------------------+"
+echo ""
+
+./devops/cluster-auth.sh

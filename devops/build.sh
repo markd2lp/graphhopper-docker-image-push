@@ -1,37 +1,40 @@
 #!/bin/bash
 
-usage() (
-cat <<USAGE
-Build a docker image for GraphHopper and optionally push it to Docker Hub
+set -e
 
-Usage:
-  ./build.sh [[--push] <tag>]
-  ./build.sh --help
+echo ""
+echo "---> Reading parameters"
+echo ""
 
-Argument:
-  <tag>         Build an image for the given graphhopper repository tag [default: master]
+while getopts i:c: flag;do
+  case "${flag}" in
+    i) IMAGE_NAME=${OPTARG} ;;
+    c) COMMIT_ID=${OPTARG} ;;
+  esac
+done
 
-Option:
-  --push        Push the image to Docker Hub
-  --help        Print this message
-  
-Docker Hub credentials are needed for pushing the image. If they are not provided using the
-DOCKERHUB_USER and DOCKERHUB_TOKEN environment variables, then they will be asked interactively.
-USAGE
+echo ""
+echo "---> Check environment"
+echo ""
+
+vars=( \
+  "IMAGE_NAME" \
+  "COMMIT_ID" \
 )
 
-if [ "$1" == "--push" ]; then
-  push="true"
-  docker login --username "${DOCKERHUB_USER}" --password "${DOCKERHUB_TOKEN}" || exit $?
-  shift
-else
-  push="false"
-fi
 
-if [ $# -gt 1 ] || [ "$1" == "--help" ]; then
-  usage
-  exit
-fi
+for var in ${vars[@]}; do
+  printf "* ${var}: "
+
+  if [[ -z ${!var} ]]; then
+    echo "✗ (must be set)"
+    exit 1
+  else
+    echo "✓ (${!var})"
+  fi
+done
+
+
 
 if [ ! -d graphhopper ]; then
   echo "Cloning graphhopper"
@@ -41,17 +44,9 @@ else
   (cd graphhopper; git checkout master; git pull)
 fi
 
-imagename="fp-graphhopper:${1:-latest}"
-if [ "$1" ]; then
-  echo "Checking out graphhopper:$1"
-  (cd graphhopper; git checkout --detach "$1")
-fi
+echo "Building docker image ${IMAGE_NAME}"
+docker build \
+  --build-arg COMMIT_HASH=${COMMIT_ID} \
+  -t "${IMAGE_NAME}" .
 
-echo "Building docker image ${imagename}"
-docker build . -t "${imagename}"
-
-if [ "${push}" == "false" ]; then
-  echo "Use \"docker push ${imagename}\" to publish the image on Docker Hub"
-else
-  docker push "${imagename}"
-fi
+echo "* Image built: ${IMAGE_NAME}"

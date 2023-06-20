@@ -27,6 +27,9 @@ EXPOSE 8989 8989
 
 HEALTHCHECK --interval=5s --timeout=3s CMD curl --fail http://localhost:8989/health || exit 1
 
+ARG COMMIT_HASH
+ENV COMMIT_HASH=${COMMIT_HASH}
+
 COPY ./docker-entrypoint.sh ./
 RUN chmod +x ./docker-entrypoint.sh
 ENTRYPOINT ["./docker-entrypoint.sh"]
